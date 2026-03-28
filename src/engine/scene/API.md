@@ -82,17 +82,18 @@ SceneManager()
 |---|---|---|
 | `current` | `Scene \| None` | Top of the stack, or None if empty |
 | `stack_depth` | `int` | Number of scenes on the stack |
+| `transitioning` | `bool` | True if a transition is currently running |
 
 ### Transition Methods
 
-All transitions are **deferred** — they queue an action that is processed in `process_pending()` or at the end of `update()`.
+All transitions are **deferred**. Pass an optional `Transition` for animated scene changes.
 
 | Method | Signature | Description |
 |---|---|---|
-| `push` | `(scene: Scene)` | Push scene on top. Current scene receives `on_pause()`, new scene receives `on_enter()`. |
-| `pop` | `()` | Pop top scene. It receives `on_exit()`, scene below receives `on_resume()`. |
-| `replace` | `(scene: Scene)` | Pop + push. Old scene receives `on_exit()`, new scene receives `on_enter()`. |
-| `clear` | `()` | Pop all scenes. Each receives `on_exit()` in LIFO order. |
+| `push` | `(scene, transition=None)` | Push scene on top. |
+| `pop` | `(transition=None)` | Pop top scene. |
+| `replace` | `(scene, transition=None)` | Replace top scene. |
+| `clear` | `()` | Pop all scenes (no transition). |
 
 ### Frame Methods
 
@@ -134,3 +135,68 @@ while app.running:
     scenes.draw(app.renderer)
     app.renderer.end_frame()
 ```
+
+---
+
+## Class: `Transition` (abstract base)
+
+**File**: `transition.py`
+
+Base class for scene transitions.
+
+### Constructor
+
+```python
+Transition(duration: float = 0.5)
+```
+
+### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `duration` | `float` | Total transition time in seconds |
+| `progress` | `float` | 0.0 to 1.0 |
+| `is_complete` | `bool` | True when elapsed >= duration |
+
+### Abstract Method
+
+| Method | Signature |
+|---|---|
+| `draw` | `(renderer) -> None` |
+
+---
+
+## Class: `FadeTransition`
+
+**Inherits**: `Transition`
+
+Fade to color and back. Scene switches at midpoint (progress=0.5).
+
+```python
+FadeTransition(duration: float = 0.5, color: Color | None = None)
+```
+
+| Property | Type | Description |
+|---|---|---|
+| `at_midpoint` | `bool` | True when progress >= 0.5 |
+
+### Usage
+
+```python
+# Fade to black over 0.8 seconds
+scenes.replace(NextScene(), transition=FadeTransition(0.8))
+```
+
+---
+
+## Class: `SlideTransition`
+
+**Inherits**: `Transition`
+
+Slide scenes in a direction.
+
+```python
+SlideTransition(duration: float = 0.5, direction: str = "left")
+```
+
+Directions: `"left"`, `"right"`, `"up"`, `"down"`

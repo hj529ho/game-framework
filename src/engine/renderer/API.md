@@ -59,6 +59,34 @@ draw_line(
 
 Draw a line between two points.
 
+#### `draw_circle`
+
+```python
+draw_circle(
+    center: Vector2,
+    radius: float,
+    color: Color,
+    filled: bool = True,
+    layer: int = 0,
+    world_space: bool = True,
+) -> None
+```
+
+Draw a circle. Uses midpoint circle algorithm.
+
+#### `draw_polygon`
+
+```python
+draw_polygon(
+    points: list[Vector2],
+    color: Color,
+    layer: int = 0,
+    world_space: bool = True,
+) -> None
+```
+
+Draw a closed polygon outline (connects last point to first).
+
 #### `draw_texture`
 
 ```python
@@ -225,4 +253,64 @@ class FPSCounter(Component):
     def on_update(self, dt):
         text = self.entity.get_component(TextRenderer)
         text.text = f"FPS: {int(current_app().clock.fps)}"
+```
+
+---
+
+## Dataclass: `Animation`
+
+**File**: `animated_sprite.py`
+
+Defines a named animation from a spritesheet.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `frames` | `list[int]` | (required) | Frame indices in the spritesheet |
+| `fps` | `float` | `10.0` | Playback speed |
+| `loop` | `bool` | `True` | Loop when finished |
+
+---
+
+## Class: `AnimatedSprite`
+
+**File**: `animated_sprite.py`
+**Inherits**: `Component`
+
+Plays spritesheet animations. Frames are laid out in a grid on a single image.
+
+### Constructor
+
+```python
+AnimatedSprite(image: str = "", frame_width: int = 32, frame_height: int = 32, layer: int = 0)
+```
+
+### Properties
+
+| Property | Type | Writable | Description |
+|---|---|---|---|
+| `image` | `str` | yes | Spritesheet image path |
+| `frame_width` | `int` | no | Single frame width |
+| `frame_height` | `int` | no | Single frame height |
+| `current_animation` | `str` | no | Name of current animation |
+| `current_frame` | `int` | no | Current frame index in spritesheet |
+| `is_playing` | `bool` | no | Whether animation is playing |
+| `is_finished` | `bool` | no | True when non-looping animation ends |
+| `layer` | `int` | yes | Render layer |
+| `anchor` | `Vector2` | yes | Anchor point. Default: center. |
+
+### Methods
+
+| Method | Signature | Description |
+|---|---|---|
+| `add_animation` | `(name: str, animation: Animation)` | Register a named animation |
+| `play` | `(name: str, restart: bool = False)` | Play animation. No-op if already playing unless restart=True. |
+| `stop` | `()` | Stop playback |
+
+### Usage
+
+```python
+anim = entity.add_component(AnimatedSprite("player.png", 32, 32))
+anim.add_animation("idle", Animation(frames=[0,1,2,3], fps=8))
+anim.add_animation("run", Animation(frames=[4,5,6,7,8,9], fps=12))
+anim.play("idle")
 ```

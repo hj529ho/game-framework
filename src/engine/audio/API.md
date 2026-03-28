@@ -3,9 +3,9 @@
 ## Class: `Sound`
 
 **File**: `audio.py`
-**Import**: `from engine.audio import Sound`
+**Import**: `from engine.audio.audio import Sound`
 
-Short sound effect. Loads via ResourceManager on first play.
+Short sound effect. Loads via `ResourceManager` on first `play()`.
 
 ### Constructor
 
@@ -13,18 +13,22 @@ Short sound effect. Loads via ResourceManager on first play.
 Sound(path: str)
 ```
 
-### Methods
-
-| Method | Signature | Description |
+| Parameter | Type | Description |
 |---|---|---|
-| `play` | `(volume: float = 1.0, loops: int = 0)` | Play the sound. volume: 0.0-1.0. loops: 0=once, -1=forever. |
-| `stop` | `()` | Stop playback. |
+| `path` | `str` | Sound file path (WAV/OGG), resolved by `ResourceManager` |
 
 ### Properties
 
-| Property | Type | Description |
-|---|---|---|
-| `is_playing` | `bool` | Whether this sound is currently playing. |
+| Property | Type | Writable | Description |
+|---|---|---|---|
+| `is_playing` | `bool` | no | `True` if this sound is currently playing on its channel |
+
+### Methods
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `play` | `(volume: float = 1.0, loops: int = 0)` | `None` | Play the sound. `volume`: 0.0 to 1.0. `loops`: 0 = play once, -1 = loop forever, N = play N+1 times. |
+| `stop` | `()` | `None` | Stop playback on the assigned channel. |
 
 ### Usage
 
@@ -43,21 +47,21 @@ class JumpBehavior(Component):
 ## Class: `Music`
 
 **File**: `audio.py`
-**Import**: `from engine.audio import Music`
+**Import**: `from engine.audio.audio import Music`
 
-Streaming background music. Static methods — only one track plays at a time.
+Streaming background music. All methods are **static** -- only one music track plays at a time (SDL_mixer limitation).
 
 ### Static Methods
 
-| Method | Signature | Description |
-|---|---|---|
-| `play` | `(path: str, volume: float = 1.0, loops: int = -1, fade_in_ms: int = 0)` | Play BGM. loops: -1=loop, 0=once. |
-| `stop` | `(fade_out_ms: int = 0)` | Stop music. Optional fade out. |
-| `pause` | `()` | Pause music. |
-| `resume` | `()` | Resume paused music. |
-| `set_volume` | `(volume: float)` | Set volume 0.0-1.0. |
-| `is_playing` | `() -> bool` | True if playing and not paused. |
-| `is_paused` | `() -> bool` | True if paused. |
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `play` | `(path: str, volume: float = 1.0, loops: int = -1, fade_in_ms: int = 0)` | `None` | Play background music. `loops`: -1 = loop forever, 0 = play once. `fade_in_ms`: fade-in duration in milliseconds (0 = instant). |
+| `stop` | `(fade_out_ms: int = 0)` | `None` | Stop music. `fade_out_ms`: fade-out duration in milliseconds (0 = instant halt). |
+| `pause` | `()` | `None` | Pause music playback. |
+| `resume` | `()` | `None` | Resume paused music. |
+| `set_volume` | `(volume: float)` | `None` | Set music volume: 0.0 to 1.0. |
+| `is_playing` | `()` | `bool` | `True` if music is playing and NOT paused. |
+| `is_paused` | `()` | `bool` | `True` if music is paused. |
 
 ### Usage
 

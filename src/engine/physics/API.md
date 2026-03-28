@@ -3,29 +3,38 @@
 ## Class: `Collider` (base)
 
 **File**: `collider.py`
+**Import**: `from engine.physics.collider import Collider`
 **Inherits**: `Component`
 
-Base collider component. Do not use directly — use BoxCollider or CircleCollider.
+Base collider component. Do not use directly -- use `BoxCollider` or `CircleCollider`.
 
-### Properties
+### Constructor
 
-| Property | Type | Writable | Description |
+```python
+Collider(offset: Vector2 | None = None, is_trigger: bool = False)
+```
+
+### Properties / Fields
+
+| Name | Type | Writable | Description |
 |---|---|---|---|
-| `offset` | `Vector2` | yes | Local offset from entity position |
-| `is_trigger` | `bool` | yes | If True, detects overlap but does not resolve |
-| `layer` | `int` | yes | Collision layer bitmask (default 1). Colliders interact only if `a.layer & b.layer` is truthy. |
-| `world_center` | `Vector2` | no | `entity.position + offset` |
+| `offset` | `Vector2` | yes | Local offset from entity position. Default: `Vector2.zero()`. |
+| `is_trigger` | `bool` | yes | If `True`, detects overlap but does not resolve. Default: `False`. |
+| `layer` | `int` | yes | Collision layer bitmask. Default: `1`. Colliders interact only if `a.layer & b.layer` is truthy. |
+| `world_center` | `Vector2` | no | Computed: `entity.position + offset` |
 
-### Methods
+### Abstract Methods
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `get_bounds` | `()` | `Rect` | World-space AABB. Override in subclass. |
+| `get_bounds` | `()` | `Rect` | World-space axis-aligned bounding box. Must be overridden. |
 
 ---
 
 ## Class: `BoxCollider`
 
+**File**: `collider.py`
+**Import**: `from engine.physics.collider import BoxCollider`
 **Inherits**: `Collider`
 
 Axis-aligned box collider.
@@ -33,20 +42,40 @@ Axis-aligned box collider.
 ### Constructor
 
 ```python
-BoxCollider(width: float, height: float, offset: Vector2 | None = None, is_trigger: bool = False)
+BoxCollider(
+    width: float,
+    height: float,
+    offset: Vector2 | None = None,
+    is_trigger: bool = False,
+)
 ```
 
 ### Fields
 
-| Field | Type | Description |
-|---|---|---|
-| `width` | `float` | Box width |
-| `height` | `float` | Box height |
+| Field | Type | Writable | Description |
+|---|---|---|---|
+| `width` | `float` | yes | Box width |
+| `height` | `float` | yes | Box height |
+
+### Methods
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `get_bounds` | `()` | `Rect` | AABB centered on `world_center` with `width` x `height` |
+
+### Usage
+
+```python
+entity.add_component(BoxCollider(40, 40))
+entity.add_component(BoxCollider(60, 20, offset=Vector2(0, 30), is_trigger=True))
+```
 
 ---
 
 ## Class: `CircleCollider`
 
+**File**: `collider.py`
+**Import**: `from engine.physics.collider import CircleCollider`
 **Inherits**: `Collider`
 
 Circle collider.
@@ -54,29 +83,40 @@ Circle collider.
 ### Constructor
 
 ```python
-CircleCollider(radius: float, offset: Vector2 | None = None, is_trigger: bool = False)
+CircleCollider(
+    radius: float,
+    offset: Vector2 | None = None,
+    is_trigger: bool = False,
+)
 ```
 
-### Fields / Methods
+### Fields
 
-| Name | Type | Description |
-|---|---|---|
-| `radius` | `float` | Circle radius |
-| `get_circle()` | `Circle` | Returns `Circle(world_center, radius)` |
+| Field | Type | Writable | Description |
+|---|---|---|---|
+| `radius` | `float` | yes | Circle radius |
+
+### Methods
+
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `get_bounds` | `()` | `Rect` | AABB centered on `world_center` with side `2 * radius` |
+| `get_circle` | `()` | `Circle` | Returns `Circle(world_center, radius)` |
 
 ---
 
 ## Dataclass: `CollisionInfo`
 
 **File**: `collision.py`
+**Import**: `from engine.physics.collision import CollisionInfo`
 
-Result of a narrowphase collision test.
+Result of a narrowphase collision test between two colliders.
 
 | Field | Type | Description |
 |---|---|---|
 | `collider_a` | `Collider` | First collider |
 | `collider_b` | `Collider` | Second collider |
-| `normal` | `Vector2` | Push direction (pushes A away from B) |
+| `normal` | `Vector2` | Push direction: pushes A away from B |
 | `penetration` | `float` | Overlap depth |
 | `contact_point` | `Vector2` | Approximate contact point |
 
@@ -85,6 +125,7 @@ Result of a narrowphase collision test.
 ## Dataclass: `RaycastHit`
 
 **File**: `collision.py`
+**Import**: `from engine.physics.collision import RaycastHit`
 
 Result of a raycast.
 
@@ -99,78 +140,77 @@ Result of a raycast.
 
 ## Function: `test_collision`
 
+**File**: `collision.py`
+**Import**: `from engine.physics.collision import test_collision`
+
 ```python
 test_collision(a: Collider, b: Collider) -> CollisionInfo | None
 ```
 
-Test collision between any two colliders. Supports: Box-Box, Circle-Circle, Box-Circle. Returns None if no collision.
+Test collision between any two colliders. Supports all combinations:
+- `BoxCollider` vs `BoxCollider` (AABB overlap + minimum penetration axis)
+- `CircleCollider` vs `CircleCollider` (distance check)
+- `BoxCollider` vs `CircleCollider` (closest point on AABB)
+- `CircleCollider` vs `BoxCollider` (reversed, normal flipped)
+
+Returns `CollisionInfo` if overlapping, otherwise `None`.
 
 ---
 
 ## Function: `raycast`
+
+**File**: `collision.py`
+**Import**: `from engine.physics.collision import raycast`
 
 ```python
 raycast(
     origin: Vector2,
     direction: Vector2,
     colliders: list[Collider],
-    max_distance: float = inf,
+    max_distance: float = float('inf'),
     layer_mask: int = 0xFFFFFFFF,
 ) -> RaycastHit | None
 ```
 
-Cast a ray and return the **closest** hit, or None. Uses slab method for AABB, quadratic formula for circles.
+Cast a ray and return the **closest** hit, or `None`.
 
-| Parameter | Description |
-|---|---|
-| `origin` | Ray start point (world space) |
-| `direction` | Ray direction (auto-normalized) |
-| `colliders` | Colliders to test against |
-| `max_distance` | Maximum ray length (default: infinite) |
-| `layer_mask` | Only test colliders where `collider.layer & mask` is truthy |
+| Parameter | Type | Description |
+|---|---|---|
+| `origin` | `Vector2` | Ray start point in world space |
+| `direction` | `Vector2` | Ray direction (auto-normalized internally) |
+| `colliders` | `list[Collider]` | Colliders to test against |
+| `max_distance` | `float` | Maximum ray length. Default: infinite. |
+| `layer_mask` | `int` | Bitmask. Only tests colliders where `collider.layer & mask` is truthy. Default: all bits set. |
+
+Uses slab method for AABB intersection and quadratic formula for circle intersection.
 
 ---
 
 ## Function: `raycast_all`
+
+**File**: `collision.py`
+**Import**: `from engine.physics.collision import raycast_all`
 
 ```python
 raycast_all(
     origin: Vector2,
     direction: Vector2,
     colliders: list[Collider],
-    max_distance: float = inf,
+    max_distance: float = float('inf'),
     layer_mask: int = 0xFFFFFFFF,
 ) -> list[RaycastHit]
 ```
 
-Cast a ray and return **all** hits sorted by distance (nearest first).
-
-### Raycast Usage
-
-```python
-class ShootComponent(Component):
-    def on_update(self, dt):
-        if current_app().keyboard.is_just_pressed(Key.SPACE):
-            # Gather colliders from the world
-            world = self.entity._world
-            colliders = []
-            for e in world.entities:
-                for c in e.components:
-                    if isinstance(c, Collider) and c.entity is not self.entity:
-                        colliders.append(c)
-
-            hit = raycast(self.position, Vector2.right(), colliders, max_distance=500)
-            if hit:
-                print(f"Hit {hit.collider.entity.name} at {hit.point}")
-```
+Cast a ray and return **all** hits sorted by distance (nearest first). Same parameters as `raycast`.
 
 ---
 
 ## Class: `SpatialHash`
 
 **File**: `spatial_hash.py`
+**Import**: `from engine.physics.spatial_hash import SpatialHash`
 
-Grid-based broadphase. Divides world into cells, returns candidate pairs.
+Grid-based broadphase collision detection. Divides the world into cells; each collider is inserted into all cells its AABB overlaps.
 
 ### Constructor
 
@@ -178,24 +218,30 @@ Grid-based broadphase. Divides world into cells, returns candidate pairs.
 SpatialHash(cell_size: float = 64.0)
 ```
 
+### Properties
+
+| Property | Type | Writable | Description |
+|---|---|---|---|
+| `cell_size` | `float` | no | Grid cell size in world units |
+
 ### Methods
 
-| Method | Signature | Description |
-|---|---|---|
-| `clear` | `()` | Clear all cells |
-| `insert` | `(collider: Collider)` | Insert collider into overlapping cells |
-| `query` | `(collider: Collider) -> list[Collider]` | Get all other colliders sharing cells |
-| `get_candidate_pairs` | `() -> list[tuple[Collider, Collider]]` | All unique overlapping pairs |
+| Method | Signature | Returns | Description |
+|---|---|---|---|
+| `clear` | `()` | `None` | Clear all cells |
+| `insert` | `(collider: Collider)` | `None` | Insert collider into all overlapping cells |
+| `query` | `(collider: Collider)` | `list[Collider]` | Get all other colliders sharing cells with this one (deduplicated) |
+| `get_candidate_pairs` | `()` | `list[tuple[Collider, Collider]]` | All unique pairs of colliders sharing at least one cell |
 
 ---
 
 ## Class: `PhysicsWorld`
 
 **File**: `physics_world.py`
+**Import**: `from engine.physics.physics_world import PhysicsWorld`
 **Inherits**: `Component`
 
-Collision detection system. Add to a manager entity in your scene.
-Runs in `on_fixed_update`: broadphase (spatial hash) then narrowphase (exact test).
+Collision detection system. Add to a manager entity in your scene. Runs broadphase (spatial hash) + narrowphase (exact collision test) in `on_fixed_update`.
 
 ### Constructor
 
@@ -208,21 +254,23 @@ PhysicsWorld(cell_size: float = 64.0)
 | Property | Type | Writable | Description |
 |---|---|---|---|
 | `spatial_hash` | `SpatialHash` | no | The broadphase grid |
-| `on_collision` | `Callable[[CollisionInfo], None] \| None` | yes | Global collision callback |
-| `resolve_solid` | `bool` | yes | If True (default), auto-resolve non-trigger overlaps |
+| `on_collision` | `Callable[[CollisionInfo], None] \| None` | yes | Global collision callback. Called for every collision. Default: `None`. |
+| `resolve_solid` | `bool` | yes | If `True` (default), auto-resolve non-trigger collisions by pushing entities apart by `penetration / 2` along normal. |
 
-### How It Works
+### How It Works (each `on_fixed_update`)
 
-Each `on_fixed_update`:
-1. Gathers all active `Collider` components in the world
-2. Inserts into spatial hash (broadphase)
-3. Tests candidate pairs (narrowphase)
-4. For solid colliders: pushes entities apart by `penetration / 2`
-5. Calls `on_collision_enter(info)` on entity components for new collisions
+1. Gather all active `Collider` components from all active entities in the world.
+2. Insert into spatial hash (broadphase).
+3. Test all candidate pairs (narrowphase) -- only if `a.layer & b.layer`.
+4. For each collision:
+   - Call `on_collision` global callback (if set).
+   - If `resolve_solid` and neither collider is a trigger: push entities apart.
+   - If this is a new collision pair: call `on_collision_enter(info)` on all components of both entities.
+5. Track active collision pairs for enter/exit detection.
 
 ### Collision Callbacks on Components
 
-Define these methods on any Component to receive collision notifications:
+Define `on_collision_enter` on any Component to receive notifications:
 
 ```python
 class PlayerHit(Component):

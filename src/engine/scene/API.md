@@ -1,11 +1,11 @@
-# engine.scene — API Reference
+# engine.scene -- API Reference
 
 ## Class: `Scene`
 
 **File**: `scene.py`
-**Import**: `from engine.scene import Scene`
+**Import**: `from engine.scene.scene import Scene`
 
-Owns a `World` of entities. Subclass for custom scenes, or use directly. User calls `update()`/`draw()` from their own loop.
+Owns a `World` of entities. Subclass and override lifecycle hooks for custom scenes.
 
 ### Constructor
 
@@ -17,12 +17,12 @@ Scene(name: str = "")  # defaults to class name if empty
 
 | Property | Type | Writable | Description |
 |---|---|---|---|
-| `name` | `str` | no | Scene name |
-| `world` | `World` | no | Entity container |
+| `name` | `str` | no | Scene name (defaults to class `__name__` if not provided) |
+| `world` | `World` | no | The entity container for this scene |
 
 ### Entity Convenience Methods
 
-Delegates to `self.world`:
+All delegate to `self.world`:
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
@@ -30,31 +30,32 @@ Delegates to `self.world`:
 | `remove` | `(entity: Entity)` | `None` | Remove entity from this scene's world |
 | `find` | `(name: str)` | `Entity \| None` | Find entity by name |
 | `find_by_tag` | `(tag: str)` | `list[Entity]` | Find entities by tag |
-| `find_by_type` | `(entity_type: type[T])` | `list[T]` | Find entities by type |
+| `find_with_component` | `(*comp_types: type[Component])` | `list[Entity]` | Find entities having all given component types |
 
 ### Lifecycle Hooks (override in subclass)
 
 | Hook | Signature | When Called |
 |---|---|---|
-| `on_enter` | `()` | Scene becomes active (pushed or replaces another) |
-| `on_exit` | `()` | Scene is removed from the stack (popped or replaced) |
-| `on_pause` | `()` | Another scene is pushed on top of this one |
-| `on_resume` | `()` | Scene above this one was popped |
+| `on_enter` | `() -> None` | Scene becomes active (pushed or replaces another) |
+| `on_exit` | `() -> None` | Scene is removed from the stack (popped or replaced) |
+| `on_pause` | `() -> None` | Another scene is pushed on top of this one |
+| `on_resume` | `() -> None` | The scene above this one was popped |
 
-### Frame Methods
+### Frame Methods (called by SceneManager)
 
 | Method | Signature | Description |
 |---|---|---|
-| `update` | `(dt: float)` | Calls `self.world.update(dt)`. Override to add custom logic. |
-| `draw` | `(renderer: Renderer)` | Calls `self.world.draw(renderer)`. Override to add custom drawing. |
+| `update` | `(dt: float) -> None` | Calls `self.world.update(dt)` |
+| `draw` | `(renderer: Renderer) -> None` | Calls `self.world.draw(renderer)` |
 
 ### Usage
 
 ```python
 class GameScene(Scene):
     def on_enter(self):
-        player = Player("player")
+        player = Entity("Player")
         player.position = Vector2(400, 300)
+        player.add_component(PlayerMovement())
         self.add(player)
 
     def on_exit(self):
@@ -66,9 +67,9 @@ class GameScene(Scene):
 ## Class: `SceneManager`
 
 **File**: `scene_manager.py`
-**Import**: `from engine.scene import SceneManager`
+**Import**: `from engine.scene.scene_manager import SceneManager`
 
-Stack-based scene manager with deferred transitions. Scene changes are queued and processed after the current frame's update.
+Stack-based scene manager with deferred transitions. Scene changes are queued and processed after the current frame.
 
 ### Constructor
 
@@ -80,67 +81,53 @@ SceneManager()
 
 | Property | Type | Description |
 |---|---|---|
-| `current` | `Scene \| None` | Top of the stack, or None if empty |
+| `current` | `Scene \| None` | Top of the stack, or `None` if empty |
 | `stack_depth` | `int` | Number of scenes on the stack |
-| `transitioning` | `bool` | True if a transition is currently running |
+| `transitioning` | `bool` | `True` if a transition is currently running |
 
-### Transition Methods
+### Scene Management Methods
 
-All transitions are **deferred**. Pass an optional `Transition` for animated scene changes.
+All operations are **deferred**. Pass an optional `Transition` for animated scene changes.
 
 | Method | Signature | Description |
 |---|---|---|
-| `push` | `(scene, transition=None)` | Push scene on top. |
-| `pop` | `(transition=None)` | Pop top scene. |
-| `replace` | `(scene, transition=None)` | Replace top scene. |
-| `clear` | `()` | Pop all scenes (no transition). |
+| `push` | `(scene: Scene, transition: Transition \| None = None) -> None` | Push a scene on top. Calls `current.on_pause()` then `scene.on_enter()`. |
+| `pop` | `(transition: Transition \| None = None) -> None` | Pop the top scene. Calls `top.on_exit()` then `new_top.on_resume()`. |
+| `replace` | `(scene: Scene, transition: Transition \| None = None) -> None` | Replace top scene. Calls `old.on_exit()` then `scene.on_enter()`. |
+| `clear` | `() -> None` | Pop all scenes (no transition support). Calls `on_exit()` on each. |
 
 ### Frame Methods
 
 | Method | Signature | Description |
 |---|---|---|
-| `process_pending` | `()` | Execute all queued transitions. Call manually, or let `update()` call it. |
-| `update` | `(dt: float)` | Update current scene, then `process_pending()`. |
-| `draw` | `(renderer: Renderer)` | Draw current scene. |
+| `process_pending` | `() -> None` | Execute all queued transitions. Skipped if a transition is currently running. |
+| `update` | `(dt: float) -> None` | Update active transition (if any), update current scene, then `process_pending()`. |
+| `draw` | `(renderer: Renderer) -> None` | Draw current scene, then draw transition overlay (if any). |
 
 ### Scene Stack Behavior
 
 ```
-push(A):        stack = [A]           A.on_enter()
-push(B):        stack = [A, B]        A.on_pause(), B.on_enter()
-pop():          stack = [A]           B.on_exit(), A.on_resume()
-replace(C):     stack = [C]           A.on_exit(), C.on_enter()
-clear():        stack = []            C.on_exit()
+push(A):       stack = [A]           A.on_enter()
+push(B):       stack = [A, B]        A.on_pause(), B.on_enter()
+pop():         stack = [A]           B.on_exit(), A.on_resume()
+replace(C):    stack = [C]           A.on_exit(), C.on_enter()
+clear():       stack = []            C.on_exit()
 ```
 
-### Usage
+### Transition Handling
 
-```python
-scenes = SceneManager()
-scenes.push(GameScene())
-scenes.process_pending()  # must call to activate first scene
-
-while app.running:
-    app.poll_events()
-    dt = app.clock.tick()
-
-    if app.keyboard.is_just_pressed(Key.ESCAPE):
-        if scenes.stack_depth > 1:
-            scenes.pop()
-        else:
-            app.quit()
-
-    scenes.update(dt)
-    app.renderer.begin_frame()
-    scenes.draw(app.renderer)
-    app.renderer.end_frame()
-```
+When a transition is provided, the scene change is deferred to the transition's midpoint:
+1. Transition starts, `update(dt)` calls `transition.update(dt)`.
+2. When `transition.at_midpoint` becomes `True`, the scene action executes (push/pop/replace).
+3. When `transition.is_complete`, the transition is cleared.
 
 ---
 
 ## Class: `Transition` (abstract base)
 
 **File**: `transition.py`
+**Import**: `from engine.scene.transition import Transition`
+**Base**: `ABC`
 
 Base class for scene transitions.
 
@@ -155,48 +142,77 @@ Transition(duration: float = 0.5)
 | Property | Type | Description |
 |---|---|---|
 | `duration` | `float` | Total transition time in seconds |
-| `progress` | `float` | 0.0 to 1.0 |
-| `is_complete` | `bool` | True when elapsed >= duration |
+| `progress` | `float` | 0.0 to 1.0. Returns 1.0 if duration <= 0. |
+| `is_complete` | `bool` | `True` when `elapsed >= duration` |
 
-### Abstract Method
+### Methods
 
-| Method | Signature |
-|---|---|
-| `draw` | `(renderer) -> None` |
+| Method | Signature | Description |
+|---|---|---|
+| `update` | `(dt: float) -> None` | Advance elapsed time |
+| `draw` | `(renderer) -> None` | **Abstract.** Draw the transition effect. Called after scene draw. |
 
 ---
 
 ## Class: `FadeTransition`
 
+**File**: `transition.py`
+**Import**: `from engine.scene.transition import FadeTransition`
 **Inherits**: `Transition`
 
-Fade to color and back. Scene switches at midpoint (progress=0.5).
+Fade to a color (default black) and back. Scene switches at midpoint (`progress >= 0.5`).
+
+### Constructor
 
 ```python
-FadeTransition(duration: float = 0.5, color: Color | None = None)
+FadeTransition(duration: float = 0.5, color: Color | None = None)  # default color: Color.BLACK
 ```
+
+### Properties
 
 | Property | Type | Description |
 |---|---|---|
-| `at_midpoint` | `bool` | True when progress >= 0.5 |
+| `at_midpoint` | `bool` | `True` when `progress >= 0.5` |
+
+### Behavior
+
+- First half (progress 0.0 to 0.5): Fade out -- alpha increases 0 to 255.
+- Second half (progress 0.5 to 1.0): Fade in -- alpha decreases 255 to 0.
 
 ### Usage
 
 ```python
-# Fade to black over 0.8 seconds
 scenes.replace(NextScene(), transition=FadeTransition(0.8))
+scenes.push(PauseScene(), transition=FadeTransition(0.3, Color.WHITE))
 ```
 
 ---
 
 ## Class: `SlideTransition`
 
+**File**: `transition.py`
+**Import**: `from engine.scene.transition import SlideTransition`
 **Inherits**: `Transition`
 
-Slide scenes in a direction.
+Slide transition providing offset values. Scene switches at midpoint.
+
+### Constructor
 
 ```python
 SlideTransition(duration: float = 0.5, direction: str = "left")
 ```
 
-Directions: `"left"`, `"right"`, `"up"`, `"down"`
+### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `direction` | `str` | One of: `"left"`, `"right"`, `"up"`, `"down"` |
+| `at_midpoint` | `bool` | `True` when `progress >= 0.5` |
+| `offset_x` | `float` | Horizontal offset based on progress and direction |
+| `offset_y` | `float` | Vertical offset based on progress and direction |
+
+### Usage
+
+```python
+scenes.replace(NextScene(), transition=SlideTransition(0.5, "left"))
+```

@@ -9,7 +9,7 @@ from engine.ecs.component import Component
 if TYPE_CHECKING:
     from engine.renderer.renderer import Renderer
     from engine.ecs.world import World
-    from engine.core.game import Game
+    from engine.ui.core.element import Element
 
 T = TypeVar("T", bound=Component)
 
@@ -41,6 +41,7 @@ class Entity:
         self._world: World | None = None
         self._parent: Entity | None = None
         self._children: list[Entity] = []
+        self._game_ui_root: Element | None = None  # In-Game UI (follows entity)
 
     @property
     def id(self) -> int:
@@ -173,6 +174,23 @@ class Entity:
     @active.setter
     def active(self, value: bool) -> None:
         self._active = value
+
+    # --- In-Game UI ---
+
+    @property
+    def game_ui(self) -> Element:
+        """In-Game UI root. Append UI elements here.
+        They will float above this entity in world space (camera-affected).
+
+        Example:
+            name_tag = Text("NPC", style="font-size: 12px; color: white; "
+                           "background: rgba(0,0,0,0.5); padding: 4px")
+            entity.game_ui.append(name_tag)
+        """
+        if self._game_ui_root is None:
+            from engine.ui.core.element import Element
+            self._game_ui_root = Element()
+        return self._game_ui_root
 
     # --- Internal lifecycle (called by World) ---
 

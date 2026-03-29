@@ -8,6 +8,7 @@ license = "MIT"
 dependencies = [
     "pysdl2>=0.9.16",
     "pysdl2-dll>=2.30.0",
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]

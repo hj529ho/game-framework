@@ -92,9 +92,10 @@ def _layout_children(parent: Element) -> None:
     total_gaps = s.gap * max(0, len(flow_children) - 1)
     total_main += total_gaps
 
-    # 3. Flex grow/shrink
+    # 3. Flex grow/shrink (only if parent has a definite size on main axis)
+    parent_main_auto = (not is_row and s.height.is_auto()) or (is_row and s.width.is_auto())
     remaining = main_size - total_main
-    if remaining > 0:
+    if remaining > 0 and not parent_main_auto:
         total_grow = sum(c.style.flex_grow for c in flow_children)
         if total_grow > 0:
             for child in flow_children:
@@ -104,7 +105,7 @@ def _layout_children(parent: Element) -> None:
                         child._computed_w += extra
                     else:
                         child._computed_h += extra
-    elif remaining < 0:
+    elif remaining < 0 and not parent_main_auto:
         total_shrink = sum(c.style.flex_shrink for c in flow_children)
         if total_shrink > 0:
             for child in flow_children:
